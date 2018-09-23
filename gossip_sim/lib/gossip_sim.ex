@@ -32,7 +32,7 @@ defmodule GossipSim do
       else
         0
       end
-
+    IO.puts "About to go into Driver"
     driver(numNodes, topology, algorithm, percentage)
   end
 
@@ -44,6 +44,7 @@ defmodule GossipSim do
       "line" ->
         Line.create(numNodes, algorithm)
         # deactivate(percentage)
+        IO.puts "Starting Gossip"
         GenServer.cast(Line.get_node_name(round(1)), {:gossip, :_sending})
 
         # "grid" ->
@@ -80,53 +81,30 @@ defmodule GossipSim do
     {:ok, [1, [], [], [{1, 1}], [{1, 1}], 0, 0, size, 1, 0, [], []]}
   end
 
-  def handle_cast({:received, node}, [
-        cast_num,
-        received,
-        hibernated,
-        prev_node,
-        prev_node_2,
-        r_count,
-        h_count,
-        size,
-        draw_every,
-        init_time,
-        _nodes,
-        dead_nodes
-      ]) do
-    init_time_ =
-      case cast_num do
-        1 -> DateTime.utc_now()
-        _ -> init_time
+   def handle_cast({:received, node }, [cast_num,received, hibernated, prev_node, prev_node_2,r_count, h_count,size, draw_every,init_time,_nodes ,dead_nodes]) do
+   IO.puts "Starting Master Received cast_num=#{cast_num}"
+    init_time_ = #DateTime.utc_now()
+      if cast_num == 1 do
+        DateTime.utc_now()
+      else 
+        init_time
+      end 
+    IO.puts "init_time=#{Kernel.inspect init_time_}"
+    draw_every_=
+      if cast_num == draw_every * 10 do
+        draw_every * 5
+      else
+        draw_every
       end
-
-    draw_every_ =
-      case cast_num == draw_every * 10 do
-        true -> draw_every * 5
-        false -> draw_every
-      end
-
-    case rem(cast_num, draw_every) == 0 do
-      # 
-      true -> Task.start(Gossip,:draw_image,[received,hibernated,0,node,prev_node,prev_node_2,size,cast_num,dead_nodes])
-      false -> ""
+    IO.puts "draw_every_=#{draw_every_}"
+    IO.puts "Drawing Decision #{rem(cast_num,draw_every)}"
+    case rem(cast_num,draw_every)==0 do
+      true -> IO.puts "Gonna draw an image async" 
+      Task.start(GossipSim,:draw_image,[received,hibernated,0,node,prev_node,prev_node_2,size,cast_num,dead_nodes])
+      false-> ""
     end
-
-    {:noreply,
-     [
-       cast_num + 1,
-       received ++ node,
-       hibernated,
-       node,
-       prev_node,
-       r_count + 1,
-       h_count,
-       size,
-       draw_every_,
-       init_time_,
-       _nodes,
-       dead_nodes
-     ]}
+    {:noreply,[cast_num+1,received ++ node, hibernated, node, prev_node, r_count + 1,h_count,size,draw_every_,init_time_,_nodes, dead_nodes]}
+    IO.puts "All set in :received"
   end
 
   def handle_cast({:node_inactive, node}, [
@@ -251,12 +229,12 @@ defmodule GossipSim do
         received,
         hibernated,
         terminated,
-        droid,
-        prev_droid,
-        prev_droid_2,
+        node,
+        prev_node,
+        prev_node_2,
         size,
         cast_num,
-        dead_droids
+        dead_nodes
       ) do
     #TODO Remove LOG 
     IO.puts("Trying to Print an Image")
@@ -270,9 +248,9 @@ defmodule GossipSim do
       :egd.rectangle(image, {first * 8 - 2, second * 8 - 2}, {first * 8, second * 8}, fill1)
     end)
 
-    [{first, second}] = prev_droid_2
+    [{first, second}] = prev_node_2
     :egd.filledEllipse(image, {first * 8 - 2, second * 8 - 2}, {first * 8, second * 8}, fill2)
-    [{first, second}] = prev_droid
+    [{first, second}] = prev_node
 
     :egd.filledEllipse(
       image,
@@ -283,7 +261,7 @@ defmodule GossipSim do
 
     case terminated do
       0 ->
-        [{first, second}] = droid
+        [{first, second}] = node
 
         :egd.filledEllipse(
           image,
@@ -293,7 +271,7 @@ defmodule GossipSim do
         )
 
       1 ->
-        [{first, second}] = droid
+        [{first, second}] = node
 
         :egd.filledEllipse(
           image,
@@ -303,7 +281,7 @@ defmodule GossipSim do
         )
     end
 
-    Enum.each(dead_droids, fn {first, second} ->
+    Enum.each(dead_nodes, fn {first, second} ->
       :egd.filledRectangle(
         image,
         {first * 8 - 3, second * 8 - 3},
