@@ -1,4 +1,4 @@
-defmodule Line do
+defmodule ImperfectLine do
   use GenServer
   # TODO i and j are irrelevant and can be removed 
   def init([id, n, algorithm]) do
@@ -15,23 +15,39 @@ defmodule Line do
 
   def get_node_name(i) do
     id = i |> Integer.to_string() |> String.pad_leading(4, "0")
-    # IO.puts ("Elixir.N1" <> id) |> String.to_atom 
     ("Elixir.N" <> id) |> String.to_atom()
   end
 
   def get_neighbors(id, n) do
-    # Perfect line emulating a doubly linked circular list 
+    # Imperfect Doubly Circular Linked List
+    # Right Pointer -> next neighbor on the line 
+    # Left Pointer -> randomly chosen neighbor 
     case id do
-      1 -> [get_node_name(n), get_node_name(2)]
-      ^n -> [get_node_name(n - 1), get_node_name(1)]
-      _ -> [get_node_name(id - 1), get_node_name(id + 1)]
+      1 -> [get_node_name(get_random_index(n, id)), get_node_name(2)]
+      ^n -> [get_node_name(get_random_index(n, id)), get_node_name(1)]
+      _ -> [get_node_name(get_random_index(n, id)), get_node_name(id + 1)]
     end
+  end
+
+  def get_random_index(n, id) do
+    random_index = Enum.random(1..n)
+
+    if random_index === id do
+      get_random_index(n, id)
+    else
+      random_index
+    end
+
+    #   case random_index do
+    #       id -> get_random_index(n, id)
+    #       _ -> random_index
+    #   end
   end
 
   def create(n, algorithm) do
     nodes =
       for i <- 1..n do
-        GenServer.start_link(Line, [i, n, algorithm], name: get_node_name(i))
+        GenServer.start_link(ImperfectLine, [i, n, algorithm], name: get_node_name(i))
       end
   end
 

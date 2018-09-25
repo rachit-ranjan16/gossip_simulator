@@ -4,19 +4,6 @@ defmodule GossipSim do
   """
   use GenServer
 
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> GossipSim.hello()
-      :world
-
-  """
-  def hello do
-    :world
-  end
-
   def main(args) when Kernel.length(args) != 3 do
     raise ArgumentError, message: "Insfficient/Excess Arguments. Enter N and k"
   end
@@ -44,8 +31,11 @@ defmodule GossipSim do
       "line" ->
         Line.create(numNodes, algorithm)
         # deactivate(percentage)
-        GenServer.cast(Line.get_node_name(round(1)), {:gossip, :_sending})
+        GenServer.cast(Line.get_node_name(1), {:gossip, :_sending})
 
+      "imperfect_line" ->
+        ImperfectLine.create(numNodes, algorithm)
+        GenServer.cast(ImperfectLine.get_node_name(1), {:gossip, :_sending})
         # "grid" ->
         #   Grid.create_network(size, false, 0)
         #   deactivate(percentage)
@@ -176,44 +166,45 @@ defmodule GossipSim do
      ]}
   end
 
-  def handle_call(:handle_node_failure, {pid, _}, [
-        _cast_num,
-        _received,
-        _hibernated,
-        _prev_node,
-        _prev_node_2,
-        _r_count,
-        _h_count,
-        _size,
-        _draw_every,
-        _init_time,
-        nodes,
-        dead_nodes
-      ]) do
-    # IO.puts("inspecting #{inspect _from}")
-    new_node = Enum.random(nodes)
+  # TODO Bonus part for emulating failure  
+  # def handle_call(:handle_node_failure, {pid, _}, [
+  #       _cast_num,
+  #       _received,
+  #       _hibernated,
+  #       _prev_node,
+  #       _prev_node_2,
+  #       _r_count,
+  #       _h_count,
+  #       _size,
+  #       _draw_every,
+  #       _init_time,
+  #       nodes,
+  #       dead_nodes
+  #     ]) do
+  #   # IO.puts("inspecting #{inspect _from}")
+  #   new_node = Enum.random(nodes)
 
-    case :erlang.whereis(new_node) do
-      ^pid -> new_node = List.delete(nodes, new_node) |> Enum.random()
-      _ -> ""
-    end
+  #   case :erlang.whereis(new_node) do
+  #     ^pid -> new_node = List.delete(nodes, new_node) |> Enum.random()
+  #     _ -> ""
+  #   end
 
-    {:reply, new_node,
-     [
-       _cast_num,
-       _received,
-       _hibernated,
-       _prev_node,
-       _prev_node_2,
-       _r_count,
-       _h_count,
-       _size,
-       _draw_every,
-       _init_time,
-       nodes,
-       dead_nodes
-     ]}
-  end
+  #   {:reply, new_node,
+  #    [
+  #      _cast_num,
+  #      _received,
+  #      _hibernated,
+  #      _prev_node,
+  #      _prev_node_2,
+  #      _r_count,
+  #      _h_count,
+  #      _size,
+  #      _draw_every,
+  #      _init_time,
+  #      nodes,
+  #      dead_nodes
+  #    ]}
+  # end
 
   def handle_cast({:hibernated, node}, [
         cast_num,
