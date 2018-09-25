@@ -32,7 +32,7 @@ defmodule GossipSim do
       else
         0
       end
-    IO.puts "About to go into Driver"
+
     driver(numNodes, topology, algorithm, percentage)
   end
 
@@ -44,7 +44,6 @@ defmodule GossipSim do
       "line" ->
         Line.create(numNodes, algorithm)
         # deactivate(percentage)
-        IO.puts "Starting Gossip"
         GenServer.cast(Line.get_node_name(round(1)), {:gossip, :_sending})
 
         # "grid" ->
@@ -70,6 +69,8 @@ defmodule GossipSim do
         #   deactivate(percentage)
         #   GenServer.cast(Full.node_name(round(numNodes / 2)), {:message_gossip, :_sending})
     end
+
+    Process.sleep(:infinity)
   end
 
   def observer(size) do
@@ -81,30 +82,67 @@ defmodule GossipSim do
     {:ok, [1, [], [], [{1, 1}], [{1, 1}], 0, 0, size, 1, 0, [], []]}
   end
 
-   def handle_cast({:received, node }, [cast_num,received, hibernated, prev_node, prev_node_2,r_count, h_count,size, draw_every,init_time,_nodes ,dead_nodes]) do
-   IO.puts "Starting Master Received cast_num=#{cast_num}"
-    init_time_ = #DateTime.utc_now()
+  def handle_cast({:received, node}, [
+        cast_num,
+        received,
+        hibernated,
+        prev_node,
+        prev_node_2,
+        r_count,
+        h_count,
+        size,
+        draw_every,
+        init_time,
+        _nodes,
+        dead_nodes
+      ]) do
+    init_time_ =
       if cast_num == 1 do
         DateTime.utc_now()
-      else 
+      else
         init_time
-      end 
-    IO.puts "init_time=#{Kernel.inspect init_time_}"
-    draw_every_=
+      end
+
+    draw_every_ =
       if cast_num == draw_every * 10 do
         draw_every * 5
       else
         draw_every
       end
-    IO.puts "draw_every_=#{draw_every_}"
-    IO.puts "Drawing Decision #{rem(cast_num,draw_every)}"
-    case rem(cast_num,draw_every)==0 do
-      true -> IO.puts "Gonna draw an image async" 
-      Task.start(GossipSim,:draw_image,[received,hibernated,0,node,prev_node,prev_node_2,size,cast_num,dead_nodes])
-      false-> ""
+
+    case rem(cast_num, draw_every) == 0 do
+      true ->
+        Task.start(GossipSim, :draw_image, [
+          received,
+          hibernated,
+          0,
+          node,
+          prev_node,
+          prev_node_2,
+          size,
+          cast_num,
+          dead_nodes
+        ])
+
+      false ->
+        ""
     end
-    {:noreply,[cast_num+1,received ++ node, hibernated, node, prev_node, r_count + 1,h_count,size,draw_every_,init_time_,_nodes, dead_nodes]}
-    IO.puts "All set in :received"
+
+    {:noreply,
+     [
+       cast_num + 1,
+       received ++ node,
+       hibernated,
+       node,
+       prev_node,
+       r_count + 1,
+       h_count,
+       size,
+       draw_every_,
+       init_time_,
+       _nodes,
+       dead_nodes
+     ]}
   end
 
   def handle_cast({:node_inactive, node}, [
@@ -191,7 +229,7 @@ defmodule GossipSim do
         nodes,
         dead_nodes
       ]) do
-    draw_image(received,hibernated,1,node,prev_node, prev_node_2,size,cast_num,dead_nodes)
+    draw_image(received, hibernated, 1, node, prev_node, prev_node_2, size, cast_num, dead_nodes)
     end_time = DateTime.utc_now()
     convergence_time = DateTime.diff(end_time, init_time, :millisecond)
     IO.puts("Convergence time: #{convergence_time} ms")
@@ -236,8 +274,6 @@ defmodule GossipSim do
         cast_num,
         dead_nodes
       ) do
-    #TODO Remove LOG 
-    IO.puts("Trying to Print an Image")
     image = :egd.create(8 * (size + 1), 8 * (size + 1))
     fill1 = :egd.color({250, 70, 22})
     fill2 = :egd.color({0, 33, 164})

@@ -2,12 +2,11 @@ defmodule Line do
   use GenServer
   # TODO i and j are irrelevant and can be removed 
   def init([id, n, algorithm]) do
-    IO.puts "Starting with id=#{id} n=#{n} algorithm=#{algorithm}"
     neighbors = get_neighbors(id, n)
+
     case algorithm do
       # [ status, rec_count, sent_count, n, self_number_id | neighbors ]
       "gossip" ->
-        IO.puts "Found a Match for Gossip with neighbors=#{Kernel.inspect neighbors}"
         {:ok, [Active, 0, 0, n, id | neighbors]}
 
         #   "pushsum" -> {:ok, [Active,0, 0, 0, 0, id, 1, n, x| neighbors] } #[status, rec_count,streak,prev_s_w,to_terminate, s, w, n, self_number_id | neighbors ]
@@ -22,7 +21,6 @@ defmodule Line do
 
   def get_neighbors(id, n) do
     # TODO REMOVE LOG 
-    IO.puts "Gonna get neighbors now"
     case id do
       1 -> [get_node_name(n), get_node_name(2)]
       ^n -> [get_node_name(n - 1), get_node_name(1)]
@@ -35,7 +33,6 @@ defmodule Line do
       for i <- 1..n do
         GenServer.start_link(Line, [i, n, algorithm], name: get_node_name(i))
       end
-      IO.puts "Created n nodes"
   end
 
   # Sync Call to check status of a node 
@@ -85,10 +82,9 @@ defmodule Line do
     j = round(Float.floor((id - 1) / length)) + 1
     # IO.puts Kernel.inspect self()
     # IO.puts count
-    
+
     case count < 200 do
       true ->
-        IO.puts "Tell Master that Gossip is ongoing for id=#{id} Master=#{Master}"
         GenServer.cast(Master, {:received, [{i, j}]})
         gossip(id, neighbors, self(), n, i, j)
 
@@ -102,9 +98,8 @@ defmodule Line do
 
   # GOSSIP  - SEND Main
   def gossip(id, neighbors, pid, n, i, j) do
-    random_index = 0..Kernel.length(neighbors)-1 |> Enum.to_list |> Enum.random
-    target = Enum.at(neighbors, random_index)
-    IO.puts "id=#{id} pid=#{pid} target=#{Kernel.inspect target} random_index=#{random_index}"
+    target = Enum.random(neighbors)
+
     case GenServer.call(target, :is_active) do
       Active ->
         GenServer.cast(target, {:gossip, :_sending})
