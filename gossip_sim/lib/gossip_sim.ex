@@ -36,6 +36,10 @@ defmodule GossipSim do
       "imperfect_line" ->
         ImperfectLine.create(numNodes, algorithm)
         GenServer.cast(ImperfectLine.get_node_name(1), {:gossip, :_sending})
+
+      "fully_connected" ->
+        FullyConnected.create(numNodes, algorithm)
+        GenServer.cast(FullyConnected.get_node_name(1), {:gossip, :_sending})
         # "grid" ->
         #   Grid.create_network(size, false, 0)
         #   deactivate(percentage)

@@ -1,13 +1,11 @@
-defmodule ImperfectLine do
+defmodule FullyConnected do
   use GenServer
-  # TODO i and j are irrelevant and can be removed 
-  def init([id, n, algorithm]) do
-    neighbors = get_neighbors(id, n)
 
+  def init([id, n, algorithm]) do
     case algorithm do
       # [ status, rec_count, sent_count, n, self_number_id | neighbors ]
       "gossip" ->
-        {:ok, [Active, 0, 0, n, id | neighbors]}
+        {:ok, [Active, 0, 0, n, id]}
 
         #   "pushsum" -> {:ok, [Active,0, 0, 0, 0, id, 1, n, x| neighbors] } #[status, rec_count,streak,prev_s_w,to_terminate, s, w, n, self_number_id | neighbors ]
     end
@@ -16,17 +14,6 @@ defmodule ImperfectLine do
   def get_node_name(i) do
     id = i |> Integer.to_string() |> String.pad_leading(4, "0")
     ("Elixir.N" <> id) |> String.to_atom()
-  end
-
-  def get_neighbors(id, n) do
-    # Imperfect Doubly Circular Linked List
-    # Right Pointer -> next neighbor on the line 
-    # Left Pointer -> randomly chosen neighbor 
-    case id do
-      1 -> [get_random_index(n, id) |> get_node_name, get_node_name(2)]
-      ^n -> [get_random_index(n, id) |> get_node_name, get_node_name(1)]
-      _ -> [get_random_index(n, id) |> get_node_name, get_node_name(id + 1)]
-    end
   end
 
   def get_random_index(n, id) do
@@ -42,7 +29,7 @@ defmodule ImperfectLine do
   def create(n, algorithm) do
     nodes =
       for i <- 1..n do
-        GenServer.start_link(ImperfectLine, [i, n, algorithm], name: get_node_name(i))
+        GenServer.start_link(FullyConnected, [i, n, algorithm], name: get_node_name(i))
       end
   end
 
@@ -51,9 +38,9 @@ defmodule ImperfectLine do
     {status, n, id} =
       case state do
         # Push Sum 
-        [status, count, streak, prev_s_w, 0, s, w, n, id | neighbors] -> {status, n, id}
+        [status, count, streak, prev_s_w, 0, s, w, n, id] -> {status, n, id}
         # Gossip
-        [status, count, sent, n, id | neighbors] -> {status, n, id}
+        [status, count, sent, n, id] -> {status, n, id}
       end
 
     case status == Active do
@@ -85,25 +72,26 @@ defmodule ImperfectLine do
   end
 
   # GOSSIP - RECIEVE Main 
-  def handle_cast({:gossip, _received}, [status, count, sent, n, id | neighbors] = state) do
+  def handle_cast({:gossip, _received}, [status, count, sent, n, id] = state) do
     length = round(Float.ceil(:math.sqrt(n)))
     i = rem(id - 1, length) + 1
     j = round(Float.floor((id - 1) / length)) + 1
 
     if count < 100 do
       GenServer.cast(Master, {:received, [{i, j}]})
-      gossip(id, neighbors, self(), n, i, j)
+      gossip(id, self(), n, i, j)
     else
       # Tell Master that gossip is complete and thread is hibernating 
       GenServer.cast(Master, {:hibernated, [{i, j}]})
     end
 
-    {:noreply, [status, count + 1, sent, n, id | neighbors]}
+    {:noreply, [status, count + 1, sent, n, id]}
   end
 
   # GOSSIP  - SEND Main
-  def gossip(id, neighbors, pid, n, i, j) do
-    target = Enum.random(neighbors)
+  def gossip(id, pid, n, i, j) do
+    # Since every node are connected to every other node, target is randomly chosen 
+    target = get_random_index(n, id) |> get_node_name
 
     case GenServer.call(target, :is_active) do
       Active ->
