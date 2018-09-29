@@ -40,28 +40,21 @@ defmodule GossipSim do
       "fully_connected" ->
         FullyConnected.create(numNodes, algorithm)
         GenServer.cast(FullyConnected.get_node_name(1), {:gossip, :_sending})
-        # "grid" ->
-        #   Grid.create_network(size, false, 0)
-        #   deactivate(percentage)
 
-        #   GenServer.cast(
-        #     Grid.node_name(round(size / 2), round(size / 2)),
-        #     {:message_gossip, :_sending}
-        #   )
+      "grid_3d" ->
+        size = round(Float.ceil(:math.pow(numNodes, 1 / 3)))
+        Grid3D.create(size - 1, algorithm)
+        GenServer.cast(Grid3D.get_node_name(0, 0, 0), {:gossip, :_sending})
 
-        # "i_grid" ->
-        #   Grid.create_network(size, true, 0)
-        #   deactivate(percentage)
+      "torus" ->
+        size = round(Float.ceil(:math.pow(numNodes, 1 / 3)))
+        Torus.create(size - 1, algorithm)
+        GenServer.cast(Torus.get_node_name(0, 0, 0), {:gossip, :_sending})
 
-        #   GenServer.cast(
-        #     Grid.node_name(round(size / 2), round(size / 2)),
-        #     {:message_gossip, :_sending}
-        #   )
-
-        # "full" ->
-        #   Full.create_network(numNodes, 0)
-        #   deactivate(percentage)
-        #   GenServer.cast(Full.node_name(round(numNodes / 2)), {:message_gossip, :_sending})
+      "random2d" -> 
+        size = round(Float.ceil(:math.sqrt(numNodes)))
+        Torus.create(size - 1, algorithm)
+        GenServer.cast(Torus.get_node_name(0, 0, 0), {:gossip, :_sending})
     end
 
     Process.sleep(:infinity)
