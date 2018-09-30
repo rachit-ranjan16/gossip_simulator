@@ -1,9 +1,11 @@
 defmodule Random2D do
   use GenServer
   # TODO i and j are irrelevant and can be removed 
-  def init([x, y, size, algorithm]) do
-    neighbors = get_neighbors(x, y, size)
-    
+  def init([x, y, size, algorithm, nodes_location]) do
+    neighbors = get_neighbors(x, y, nodes_location, [], 0)
+
+    # IO.puts("Node #{x},#{y} #{length(neighbors)}")
+
     case algorithm do
       # [ status, rec_count, sent_count, n, self_number_id | neighbors ]
       "gossip" ->
@@ -14,20 +16,75 @@ defmodule Random2D do
   end
 
   def get_node_name(x, y) do
-    x_ = x |> Integer.to_string() |> String.pad_leading(2, "#")
-    y_ = y |> Integer.to_string() |> String.pad_leading(2, "#")
+    x_ = x |> Float.to_string() |> String.pad_leading(2, "#")
+    y_ = y |> Float.to_string() |> String.pad_leading(2, "#")
     ("Elixir.N000" <> x_ <> y_) |> String.to_atom()
   end
 
-  def get_neighbors(x, y, size) do  
-    #TODO Decide how to get neighbors 
+  def get_distance(x1, y1, x2, y2) do
+    :math.sqrt(:math.pow(x2 - x1, 2) + :math.pow(y2 - y1, 2))
+  end
+
+  def get_neighbors(x, y, nodes_location, close_ones, i) when i >= length(nodes_location) do
+    close_ones
+  end
+
+  def get_neighbors(x, y, nodes_location, close_ones, i)
+      when i < length(nodes_location) do
+    close_ones =
+      if get_distance(
+           x,
+           y,
+           elem(Enum.at(nodes_location, i), 0),
+           elem(Enum.at(nodes_location, i), 1)
+         ) < 0.1 and x != elem(Enum.at(nodes_location, i), 0) and
+           y != elem(Enum.at(nodes_location, i), 1) do
+        [
+          get_node_name(
+            elem(Enum.at(nodes_location, i), 0),
+            elem(Enum.at(nodes_location, i), 1)
+          )
+          | close_ones
+        ]
+      else
+        close_ones
+      end
+
+    # IO.puts(Kernel.inspect(close_ones))
+    get_neighbors(x, y, nodes_location, close_ones, i + 1)
+  end
+
+  def populate_node_locations(nodes, n) when n === 0 do
+    nodes
+  end
+
+  def populate_node_locations(nodes, n) when n > 0 do
+    nodes = [{:rand.uniform(), :rand.uniform()} | nodes]
+    populate_node_locations(nodes, n - 1)
   end
 
   def create(size, algorithm) do
-    nodes = GenServer.start_link(Random2D, [:rand.uniform(), :random.uniform(), size, algorithm], name: get_node_name(i, j))
-          end
-        end
-      end
+    nodes_location = populate_node_locations([], size)
+    # IO.puts(Kernel.inspect nodes_location)
+    for i <- 0..(size - 1) do
+      GenServer.start_link(
+        Random2D,
+        [
+          elem(Enum.at(nodes_location, i), 0),
+          elem(Enum.at(nodes_location, i), 1),
+          size,
+          algorithm,
+          nodes_location
+        ],
+        name:
+          get_node_name(
+            elem(Enum.at(nodes_location, i), 0),
+            elem(Enum.at(nodes_location, i), 1)
+          )
+      )
+    end
+
+    nodes_location
   end
 
   # Sync Call to check status of a node 
@@ -37,7 +94,7 @@ defmodule Random2D do
         # Push Sum 
         [status, count, streak, prev_s_w, 0, s, w, n, x, y | neighbors] -> {status, n, x, y}
         # Gossip
-        [status, count, sent, n, x, y| neighbors] -> {status, n, x, y}
+        [status, count, sent, n, x, y | neighbors] -> {status, n, x, y}
       end
 
     case status == Active do
@@ -73,8 +130,8 @@ defmodule Random2D do
   # GOSSIP - RECIEVE Main 
   def handle_cast({:gossip, _received}, [status, count, sent, n, x, y | neighbors] = state) do
     length = round(Float.ceil(:math.sqrt(n)))
-    i = rem(x + y - 1, length) + 1
-    j = round(Float.floor((x + y - 1) / length)) + 1
+    i = 0
+    j = 0
 
     if count < 100 do
       GenServer.cast(Master, {:received, [{i, j}]})

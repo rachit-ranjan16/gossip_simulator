@@ -30,9 +30,10 @@ defmodule GossipSim do
     case topology do
       "line" ->
         Line.create(numNodes, algorithm)
-        # deactivate(percentage)
-        GenServer.cast(Line.get_node_name(1), {:gossip, :_sending})
-
+        case algorithm do
+          "gossip" -> GenServer.cast(Line.get_node_name(1), {:gossip, :_sending})
+          "pushsum" -> GenServer.cast(Line.get_node_name(1), {:pushsum, {1, 1}})
+        end
       "imperfect_line" ->
         ImperfectLine.create(numNodes, algorithm)
         GenServer.cast(ImperfectLine.get_node_name(1), {:gossip, :_sending})
@@ -51,10 +52,17 @@ defmodule GossipSim do
         Torus.create(size - 1, algorithm)
         GenServer.cast(Torus.get_node_name(0, 0, 0), {:gossip, :_sending})
 
-      "random2d" -> 
-        size = round(Float.ceil(:math.sqrt(numNodes)))
-        Torus.create(size - 1, algorithm)
-        GenServer.cast(Torus.get_node_name(0, 0, 0), {:gossip, :_sending})
+      "random2d" ->
+        nodes = Random2D.create(numNodes, algorithm)
+        # Kernel.inspect(nodes |> IO.puts())
+
+        GenServer.cast(
+          Random2D.get_node_name(
+            elem(Enum.at(nodes, 0), 0),
+            elem(Enum.at(nodes, 0), 1)
+          ),
+          {:gossip, :_sending}
+        )
     end
 
     Process.sleep(:infinity)
