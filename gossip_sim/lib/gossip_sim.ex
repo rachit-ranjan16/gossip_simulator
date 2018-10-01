@@ -30,39 +30,68 @@ defmodule GossipSim do
     case topology do
       "line" ->
         Line.create(numNodes, algorithm)
+
         case algorithm do
           "gossip" -> GenServer.cast(Line.get_node_name(1), {:gossip, :_sending})
           "pushsum" -> GenServer.cast(Line.get_node_name(1), {:pushsum, {1, 1}})
         end
+
       "imperfect_line" ->
         ImperfectLine.create(numNodes, algorithm)
-        GenServer.cast(ImperfectLine.get_node_name(1), {:gossip, :_sending})
+
+        case algorithm do
+          "gossip" -> GenServer.cast(ImperfectLine.get_node_name(1), {:gossip, :_sending})
+          "pushsum" -> GenServer.cast(ImperfectLine.get_node_name(1), {:pushsum, {1, 1}})
+        end
 
       "fully_connected" ->
         FullyConnected.create(numNodes, algorithm)
-        GenServer.cast(FullyConnected.get_node_name(1), {:gossip, :_sending})
 
-      "grid_3d" ->
+        case algorithm do
+          "gossip" -> GenServer.cast(FullyConnected.get_node_name(1), {:gossip, :_sending})
+          "pushsum" -> GenServer.cast(FullyConnected.get_node_name(1), {:pushsum, {1, 1}})
+        end
+
+      "grid3d" ->
         size = round(Float.ceil(:math.pow(numNodes, 1 / 3)))
         Grid3D.create(size - 1, algorithm)
-        GenServer.cast(Grid3D.get_node_name(0, 0, 0), {:gossip, :_sending})
+
+        case algorithm do
+          "gossip" -> GenServer.cast(Grid3D.get_node_name(0, 0, 0), {:gossip, :_sending})
+          "pushsum" -> GenServer.cast(Grid3D.get_node_name(0, 0, 0), {:pushsum, {1, 1}})
+        end
+
+      "random2d" ->
+        nodes = Random2D.create(numNodes, algorithm)
+
+        case algorithm do
+          "gossip" ->
+            GenServer.cast(
+              Random2D.get_node_name(
+                elem(Enum.at(nodes, 0), 0),
+                elem(Enum.at(nodes, 0), 1)
+              ),
+              {:gossip, :_sending}
+            )
+
+          "pushsum" ->
+            GenServer.cast(
+              Random2D.get_node_name(
+                elem(Enum.at(nodes, 0), 0),
+                elem(Enum.at(nodes, 0), 1)
+              ),
+              {:pushsum, {1, 1}}
+            )
+        end
 
       "torus" ->
         size = round(Float.ceil(:math.pow(numNodes, 1 / 3)))
         Torus.create(size - 1, algorithm)
-        GenServer.cast(Torus.get_node_name(0, 0, 0), {:gossip, :_sending})
 
-      "random2d" ->
-        nodes = Random2D.create(numNodes, algorithm)
-        # Kernel.inspect(nodes |> IO.puts())
-
-        GenServer.cast(
-          Random2D.get_node_name(
-            elem(Enum.at(nodes, 0), 0),
-            elem(Enum.at(nodes, 0), 1)
-          ),
-          {:gossip, :_sending}
-        )
+        case algorithm do
+          "gossip" -> GenServer.cast(Torus.get_node_name(0, 0, 0), {:gossip, :_sending})
+          "pushsum" -> GenServer.cast(Torus.get_node_name(0, 0, 0), {:pushsum, {1, 1}})
+        end
     end
 
     Process.sleep(:infinity)
@@ -104,24 +133,6 @@ defmodule GossipSim do
       else
         draw_every
       end
-
-    case rem(cast_num, draw_every) == 0 do
-      true ->
-        Task.start(GossipSim, :draw_image, [
-          received,
-          hibernated,
-          0,
-          node,
-          prev_node,
-          prev_node_2,
-          size,
-          cast_num,
-          dead_nodes
-        ])
-
-      false ->
-        ""
-    end
 
     {:noreply,
      [
@@ -171,46 +182,6 @@ defmodule GossipSim do
      ]}
   end
 
-  # TODO Bonus part for emulating failure  
-  # def handle_call(:handle_node_failure, {pid, _}, [
-  #       _cast_num,
-  #       _received,
-  #       _hibernated,
-  #       _prev_node,
-  #       _prev_node_2,
-  #       _r_count,
-  #       _h_count,
-  #       _size,
-  #       _draw_every,
-  #       _init_time,
-  #       nodes,
-  #       dead_nodes
-  #     ]) do
-  #   # IO.puts("inspecting #{inspect _from}")
-  #   new_node = Enum.random(nodes)
-
-  #   case :erlang.whereis(new_node) do
-  #     ^pid -> new_node = List.delete(nodes, new_node) |> Enum.random()
-  #     _ -> ""
-  #   end
-
-  #   {:reply, new_node,
-  #    [
-  #      _cast_num,
-  #      _received,
-  #      _hibernated,
-  #      _prev_node,
-  #      _prev_node_2,
-  #      _r_count,
-  #      _h_count,
-  #      _size,
-  #      _draw_every,
-  #      _init_time,
-  #      nodes,
-  #      dead_nodes
-  #    ]}
-  # end
-
   def handle_cast({:hibernated, node}, [
         cast_num,
         received,
@@ -225,22 +196,9 @@ defmodule GossipSim do
         nodes,
         dead_nodes
       ]) do
-    draw_image(received, hibernated, 1, node, prev_node, prev_node_2, size, cast_num, dead_nodes)
     end_time = DateTime.utc_now()
     convergence_time = DateTime.diff(end_time, init_time, :millisecond)
-    IO.puts("Convergence time: #{convergence_time} ms")
-
-    draw_image(
-      received,
-      hibernated,
-      1,
-      node,
-      prev_node,
-      prev_node_2,
-      size,
-      cast_num,
-      dead_nodes
-    )
+    IO.puts("Convergence Time = #{convergence_time} ms")
 
     {:noreply,
      [
@@ -257,73 +215,5 @@ defmodule GossipSim do
        nodes,
        dead_nodes
      ]}
-  end
-
-  def draw_image(
-        received,
-        hibernated,
-        terminated,
-        node,
-        prev_node,
-        prev_node_2,
-        size,
-        cast_num,
-        dead_nodes
-      ) do
-    image = :egd.create(8 * (size + 1), 8 * (size + 1))
-    fill1 = :egd.color({250, 70, 22})
-    fill2 = :egd.color({0, 33, 164})
-    fill3 = :egd.color({255, 0, 0})
-    fill4 = :egd.color({0, 0, 0})
-
-    Enum.each(received, fn {first, second} ->
-      :egd.rectangle(image, {first * 8 - 2, second * 8 - 2}, {first * 8, second * 8}, fill1)
-    end)
-
-    [{first, second}] = prev_node_2
-    :egd.filledEllipse(image, {first * 8 - 2, second * 8 - 2}, {first * 8, second * 8}, fill2)
-    [{first, second}] = prev_node
-
-    :egd.filledEllipse(
-      image,
-      {first * 8 - 3, second * 8 - 3},
-      {first * 8 + 1, second * 8 + 1},
-      fill2
-    )
-
-    case terminated do
-      0 ->
-        [{first, second}] = node
-
-        :egd.filledEllipse(
-          image,
-          {first * 8 - 4, second * 8 - 4},
-          {first * 8 + 2, second * 8 + 2},
-          fill2
-        )
-
-      1 ->
-        [{first, second}] = node
-
-        :egd.filledEllipse(
-          image,
-          {first * 8 - 6, second * 8 - 6},
-          {first * 8 + 4, second * 8 + 4},
-          fill3
-        )
-    end
-
-    Enum.each(dead_nodes, fn {first, second} ->
-      :egd.filledRectangle(
-        image,
-        {first * 8 - 3, second * 8 - 3},
-        {first * 8 + 1, second * 8 + 1},
-        fill4
-      )
-    end)
-
-    rendered_image = :egd.render(image)
-    File.write("live.png", rendered_image)
-    File.write("~/SS/snap#{cast_num}.png", rendered_image)
   end
 end

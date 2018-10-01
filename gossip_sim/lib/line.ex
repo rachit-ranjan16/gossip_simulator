@@ -1,15 +1,13 @@
 defmodule Line do
   use GenServer
-  # TODO i and j are irrelevant and can be removed 
+
   def init([id, n, algorithm]) do
     neighbors = get_neighbors(id, n)
 
     case algorithm do
-      # [ status, rec_count, sent_count, n, self_number_id | neighbors ]
       "gossip" ->
         {:ok, [Active, 0, 0, n, id | neighbors]}
 
-      # [status, rec_count,streak,prev_s_w,to_terminate, s, w, n, self_number_id | neighbors ]
       "pushsum" ->
         {:ok, [Active, 0, 0, 0, 0, id, 1, n, id | neighbors]}
     end
@@ -17,7 +15,6 @@ defmodule Line do
 
   def get_node_name(i) do
     id = i |> Integer.to_string() |> String.pad_leading(4, "0")
-    # IO.puts ("Elixir.N1" <> id) |> String.to_atom 
     ("Elixir.N" <> id) |> String.to_atom()
   end
 
@@ -75,7 +72,7 @@ defmodule Line do
     {:noreply, state ++ [node]}
   end
 
-  # GOSSIP - RECIEVE Main 
+  # GOSSIP - RECIEVE  
   def handle_cast({:gossip, _received}, [status, count, sent, n, id | neighbors] = state) do
     length = round(Float.ceil(:math.sqrt(n)))
     i = rem(id - 1, length) + 1
@@ -92,7 +89,7 @@ defmodule Line do
     {:noreply, [status, count + 1, sent, n, id | neighbors]}
   end
 
-  # GOSSIP  - SEND Main
+  # GOSSIP - SEND 
   def gossip(id, neighbors, pid, n, i, j) do
     target = Enum.random(neighbors)
 
@@ -110,7 +107,7 @@ defmodule Line do
     end
   end
 
-  # PUSHSUM - RECIEVE Main
+  # PUSHSUM - RECIEVE
   def handle_cast(
         {:pushsum, {rec_s, rec_w}},
         [status, count, streak, prev_s_w, term, s, w, n, id | neighbors] = state
@@ -174,7 +171,7 @@ defmodule Line do
     end
   end
 
-  # PUSHSUM  - SEND MAIN
+  # PUSHSUM - SEND 
   def push_sum(id, s, w, neighbors, pid, i, j) do
     target = Enum.random(neighbors)
 
@@ -188,7 +185,6 @@ defmodule Line do
         GenServer.cast(self(), {:remove_neighbor, target})
         GenServer.cast(self(), {:add_new_neighbor, new_neighbor})
         GenServer.cast(new_neighbor, {:add_new_neighbor, get_node_name(id)})
-        # GenServer.cast(self(),{:retry_push_sum,{id,s,w,pid,i,j}})
     end
   end
 end

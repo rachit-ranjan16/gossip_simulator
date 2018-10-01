@@ -1,15 +1,15 @@
 defmodule Torus do
   use GenServer
-  # TODO i and j are irrelevant and can be removed 
+
   def init([x, y, z, size, algorithm]) do
     neighbors = get_neighbors(x, y, z, size)
 
     case algorithm do
-      # [ status, rec_count, sent_count, n, self_number_id | neighbors ]
       "gossip" ->
         {:ok, [Active, 0, 0, size, x, y, z | neighbors]}
 
-        #   "pushsum" -> {:ok, [Active,0, 0, 0, 0, id, 1, n, x| neighbors] } #[status, rec_count,streak,prev_s_w,to_terminate, s, w, n, self_number_id | neighbors ]
+      "pushsum" ->
+        {:ok, [Active, 0, 0, 0, 0, x, 1, size, x, y, z | neighbors]}
     end
   end
 
@@ -326,11 +326,6 @@ defmodule Torus do
 
       false ->
         nil
-        # TODO Figure out what to do here 
-        # length = round(Float.ceil(:math.sqrt(n)))
-        # i = rem(id - 1, length) + 1
-        # j = round(Float.floor((id - 1) / length)) + 1
-        # {:reply, [{i, j}], state}
     end
   end
 
@@ -345,12 +340,12 @@ defmodule Torus do
     {:noreply, new_state}
   end
 
-  # NODE : ADD another node to replace inactive node
+  # Add another node to replace inactive node
   def handle_cast({:add_new_mate, node}, state) do
     {:noreply, state ++ [node]}
   end
 
-  # GOSSIP - RECIEVE Main 
+  # GOSSIP - RECIEVE 
   def handle_cast({:gossip, _received}, [status, count, sent, n, x, y, z | neighbors] = state) do
     length = round(Float.ceil(:math.sqrt(n)))
     i = rem(x + y + z - 1, length) + 1
@@ -367,7 +362,7 @@ defmodule Torus do
     {:noreply, [status, count + 1, sent, n, x, y, z | neighbors]}
   end
 
-  # GOSSIP  - SEND Main
+  # GOSSIP  - SEND
   def gossip(x, y, z, neighbors, pid, n, i, j) do
     target = Enum.random(neighbors)
 
@@ -382,6 +377,93 @@ defmodule Torus do
         GenServer.cast(self(), {:add_new_neighbor, new_neighbor})
         GenServer.cast(new_neighbor, {:add_new_neighbor, get_node_name(x, y, z)})
         GenServer.cast(self(), {:retry_gossip, {pid, i, j}})
+    end
+  end
+
+  # PUSHSUM - RECIEVE
+  def handle_cast(
+        {:pushsum, {rec_s, rec_w}},
+        [status, count, streak, prev_s_w, term, s, w, size, x, y, z | neighbors] = state
+      ) do
+    length = round(Float.ceil(:math.sqrt(size)))
+    i = 0
+    j = 0
+    GenServer.cast(Master, {:received, [{i, j}]})
+
+    case abs((s + rec_s) / (w + rec_w) - prev_s_w) < :math.pow(10, -10) do
+      false ->
+        push_sum(x, y, z, (s + rec_s) / 2, (w + rec_w) / 2, neighbors, self(), i, j)
+
+        {:noreply,
+         [
+           status,
+           count + 1,
+           0,
+           (s + rec_s) / (w + rec_w),
+           term,
+           (s + rec_s) / 2,
+           (w + rec_w) / 2,
+           size,
+           x,
+           y,
+           z | neighbors
+         ]}
+
+      true ->
+        case streak + 1 == 3 do
+          true ->
+            GenServer.cast(Master, {:hibernated, [{i, j}]})
+
+            {:noreply,
+             [
+               status,
+               count + 1,
+               streak + 1,
+               (s + rec_s) / (w + rec_w),
+               1,
+               s + rec_s,
+               w + rec_w,
+               size,
+               x,
+               y,
+               z | neighbors
+             ]}
+
+          false ->
+            push_sum(x, y, z, (s + rec_s) / 2, (w + rec_w) / 2, neighbors, self(), i, j)
+
+            {:noreply,
+             [
+               status,
+               count + 1,
+               streak + 1,
+               (s + rec_s) / (w + rec_w),
+               0,
+               (s + rec_s) / 2,
+               (w + rec_w) / 2,
+               size,
+               x,
+               y,
+               z | neighbors
+             ]}
+        end
+    end
+  end
+
+  # PUSHSUM - SEND 
+  def push_sum(x, y, z, s, w, neighbors, pid, i, j) do
+    target = Enum.random(neighbors)
+
+    case GenServer.call(target, :is_active) do
+      Active ->
+        GenServer.cast(target, {:pushsum, {s, w}})
+
+      ina_xy ->
+        GenServer.cast(Master, {:node_inactive, ina_xy})
+        new_neighbor = GenServer.call(Master, :handle_node_failure)
+        GenServer.cast(self(), {:remove_neighbor, target})
+        GenServer.cast(self(), {:add_new_neighbor, new_neighbor})
+        GenServer.cast(new_neighbor, {:add_new_neighbor, get_node_name(x, y, z)})
     end
   end
 end

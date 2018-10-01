@@ -1,17 +1,15 @@
 defmodule Random2D do
   use GenServer
-  # TODO i and j are irrelevant and can be removed 
+
   def init([x, y, size, algorithm, nodes_location]) do
     neighbors = get_neighbors(x, y, nodes_location, [], 0)
 
-    # IO.puts("Node #{x},#{y} #{length(neighbors)}")
-
     case algorithm do
-      # [ status, rec_count, sent_count, n, self_number_id | neighbors ]
       "gossip" ->
         {:ok, [Active, 0, 0, size, x, y | neighbors]}
 
-        #   "pushsum" -> {:ok, [Active,0, 0, 0, 0, id, 1, n, x| neighbors] } #[status, rec_count,streak,prev_s_w,to_terminate, s, w, n, self_number_id | neighbors ]
+      "pushsum" ->
+        {:ok, [Active, 0, 0, 0, 0, 0, 1, size, x, y | neighbors]}
     end
   end
 
@@ -50,22 +48,21 @@ defmodule Random2D do
         close_ones
       end
 
-    # IO.puts(Kernel.inspect(close_ones))
     get_neighbors(x, y, nodes_location, close_ones, i + 1)
   end
 
-  def populate_node_locations(nodes, n) when n === 0 do
+  def populate_node_locations(nodes, size) when size === 0 do
     nodes
   end
 
-  def populate_node_locations(nodes, n) when n > 0 do
+  def populate_node_locations(nodes, size) when size > 0 do
     nodes = [{:rand.uniform(), :rand.uniform()} | nodes]
-    populate_node_locations(nodes, n - 1)
+    populate_node_locations(nodes, size - 1)
   end
 
   def create(size, algorithm) do
     nodes_location = populate_node_locations([], size)
-    # IO.puts(Kernel.inspect nodes_location)
+
     for i <- 0..(size - 1) do
       GenServer.start_link(
         Random2D,
@@ -89,12 +86,12 @@ defmodule Random2D do
 
   # Sync Call to check status of a node 
   def handle_call(:is_active, _from, state) do
-    {status, n, x, y} =
+    {status, size, x, y} =
       case state do
         # Push Sum 
-        [status, count, streak, prev_s_w, 0, s, w, n, x, y | neighbors] -> {status, n, x, y}
+        [status, count, streak, prev_s_w, 0, s, w, size, x, y | neighbors] -> {status, size, x, y}
         # Gossip
-        [status, count, sent, n, x, y | neighbors] -> {status, n, x, y}
+        [status, count, sent, size, x, y | neighbors] -> {status, size, x, y}
       end
 
     case status == Active do
@@ -103,11 +100,6 @@ defmodule Random2D do
 
       false ->
         nil
-        # TODO Figure out what to do here 
-        # length = round(Float.ceil(:math.sqrt(n)))
-        # i = rem(id - 1, length) + 1
-        # j = round(Float.floor((id - 1) / length)) + 1
-        # {:reply, [{i, j}], state}
     end
   end
 
@@ -127,25 +119,25 @@ defmodule Random2D do
     {:noreply, state ++ [node]}
   end
 
-  # GOSSIP - RECIEVE Main 
-  def handle_cast({:gossip, _received}, [status, count, sent, n, x, y | neighbors] = state) do
-    length = round(Float.ceil(:math.sqrt(n)))
+  # GOSSIP - RECIEVE 
+  def handle_cast({:gossip, _received}, [status, count, sent, size, x, y | neighbors] = state) do
+    length = round(Float.ceil(:math.sqrt(size)))
     i = 0
     j = 0
 
     if count < 100 do
       GenServer.cast(Master, {:received, [{i, j}]})
-      gossip(x, y, neighbors, self(), n, i, j)
+      gossip(x, y, neighbors, self(), size, i, j)
     else
       # Tell Master that gossip is complete and thread is hibernating 
       GenServer.cast(Master, {:hibernated, [{i, j}]})
     end
 
-    {:noreply, [status, count + 1, sent, n, x, y | neighbors]}
+    {:noreply, [status, count + 1, sent, size, x, y | neighbors]}
   end
 
-  # GOSSIP  - SEND Main
-  def gossip(x, y, neighbors, pid, n, i, j) do
+  # GOSSIP  - SEND
+  def gossip(x, y, neighbors, pid, size, i, j) do
     target = Enum.random(neighbors)
 
     case GenServer.call(target, :is_active) do
@@ -159,6 +151,89 @@ defmodule Random2D do
         GenServer.cast(self(), {:add_new_neighbor, new_neighbor})
         GenServer.cast(new_neighbor, {:add_new_neighbor, get_node_name(x, y)})
         GenServer.cast(self(), {:retry_gossip, {pid, i, j}})
+    end
+  end
+
+  def handle_cast(
+        {:pushsum, {rec_s, rec_w}},
+        [status, count, streak, prev_s_w, term, s, w, size, x, y | neighbors] = state
+      ) do
+    length = round(Float.ceil(:math.sqrt(size)))
+    i = 0
+    j = 0
+    GenServer.cast(Master, {:received, [{i, j}]})
+
+    case abs((s + rec_s) / (w + rec_w) - prev_s_w) < :math.pow(10, -10) do
+      false ->
+        push_sum(x, y, (s + rec_s) / 2, (w + rec_w) / 2, neighbors, self(), i, j)
+
+        {:noreply,
+         [
+           status,
+           count + 1,
+           0,
+           (s + rec_s) / (w + rec_w),
+           term,
+           (s + rec_s) / 2,
+           (w + rec_w) / 2,
+           size,
+           x,
+           y | neighbors
+         ]}
+
+      true ->
+        case streak + 1 == 3 do
+          true ->
+            GenServer.cast(Master, {:hibernated, [{i, j}]})
+
+            {:noreply,
+             [
+               status,
+               count + 1,
+               streak + 1,
+               (s + rec_s) / (w + rec_w),
+               1,
+               s + rec_s,
+               w + rec_w,
+               size,
+               x,
+               y | neighbors
+             ]}
+
+          false ->
+            push_sum(x, y, (s + rec_s) / 2, (w + rec_w) / 2, neighbors, self(), i, j)
+
+            {:noreply,
+             [
+               status,
+               count + 1,
+               streak + 1,
+               (s + rec_s) / (w + rec_w),
+               0,
+               (s + rec_s) / 2,
+               (w + rec_w) / 2,
+               size,
+               x,
+               y | neighbors
+             ]}
+        end
+    end
+  end
+
+  # PUSHSUM - SEND 
+  def push_sum(x, y, s, w, neighbors, pid, i, j) do
+    target = Enum.random(neighbors)
+
+    case GenServer.call(target, :is_active) do
+      Active ->
+        GenServer.cast(target, {:pushsum, {s, w}})
+
+      ina_xy ->
+        GenServer.cast(Master, {:node_inactive, ina_xy})
+        new_neighbor = GenServer.call(Master, :handle_node_failure)
+        GenServer.cast(self(), {:remove_neighbor, target})
+        GenServer.cast(self(), {:add_new_neighbor, new_neighbor})
+        GenServer.cast(new_neighbor, {:add_new_neighbor, get_node_name(x, y)})
     end
   end
 end
