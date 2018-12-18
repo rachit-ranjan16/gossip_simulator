@@ -1,29 +1,51 @@
-# README #
+# GossipSim - Gossip Simulator 
+### Description 
+Simulate Asynchronous Gossip based Algorithms for message passing and aggregation using Elixir's Actor Model 
 
-This README would normally document whatever steps are necessary to get your application up and running.
+## Group Members 
+  - Rachit Ranjan 
+  - Aditya Vashist 
 
-### What is this repository for? ###
+## Prerequisites 
+  - Elixir 1.7+ Installation  
+## Algorithms 
+  - Gossip 
+    - `gossip`
+  - Push Sum 
+    - `pushsum`
+## Working Topologies 
+  - Line 
+    - `line` 
+  - Imperfect Line
+    - `imperfect_line`
+  - Fully Connected Network
+    - `fully_connected`
+  - 3D Grid 
+    - `grid3d`
+  - Torus 
 
-* Quick summary
-* Version
-* [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
+    - `torus`
+  - 2D Random Grid
+    - `random2d`
+## Execution Instructions 
+  - Navigate to gossip_sim 
+  - Compile and Build 
+    - mix compile
+    - mix run 
+    - mix escript.build
+  - Execute 
+    - `./gossip_sim numNodes topology algorithm` 
+      - numNodes Integer 
+      - topology: one of the highlighted topology keywords e.g. `line`,`random2d`, etc. 
+      - algorithm: one of the highlighted algorithm keywords. e.g. `gossip` or `pushsum`
+## Observations 
+  - All topologies work with both algorithms 
 
-### How do I get set up? ###
-
-* Summary of set up
-* Configuration
-* Dependencies
-* Database configuration
-* How to run tests
-* Deployment instructions
-
-### Contribution guidelines ###
-
-* Writing tests
-* Code review
-* Other guidelines
-
-### Who do I talk to? ###
-
-* Repo owner or admin
-* Other community or team contact
+| Topology        | MaxNetworkSize  Gossip | MaxNetworkSize PushSum |
+|-----------------|------------------------|------------------------|
+| Line            | 10e5                   | 2048                   |
+| Imperfect Line  | 10e5                   | 2048                   |
+| Fully Connected | 10e4                   | 1024                   |
+| 3D Grid         | 10e3                   | 1024                   |
+| Torus           | 10e4                   | 1024                   |
+| 2D Random Grid  | 10e5                   | 16384                  |

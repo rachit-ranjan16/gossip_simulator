@@ -85,8 +85,9 @@ defmodule Line do
       # Tell Master that gossip is complete and thread is hibernating 
       GenServer.cast(Master, {:hibernated, [{i, j}]})
     end
-
-    {:noreply, [status, count + 1, sent, n, id | neighbors]}
+    for i <- 1..3 do
+      {:noreply, [status, count + 1, sent, n, id | neighbors]}
+    end
   end
 
   # GOSSIP - SEND 
@@ -126,7 +127,7 @@ defmodule Line do
            status,
            count + 1,
            0,
-           (s + rec_s) / (w + rec_w),
+           rec_s
            term,
            (s + rec_s) / 2,
            (w + rec_w) / 2,

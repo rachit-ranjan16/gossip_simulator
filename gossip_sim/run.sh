@@ -2,4 +2,4 @@ mix deps.get
 mix compile
 mix run 
 mix escript.build
-./gossip_sim $1 $2 $3
+./gossip_sim $1 $3 $2 
